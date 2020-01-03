@@ -11,7 +11,7 @@ defmodule Shortener.LinkManager do
 
   def child_spec(_args) do
     children = [
-      Cache,
+      Cache
       # TODO - Extend this supervision tree to support remote lookups
     ]
 
@@ -24,12 +24,26 @@ defmodule Shortener.LinkManager do
 
   def create(url) do
     short_code = generate_short_code(url)
+    Storage.set(short_code, url)
 
     {:ok, short_code}
   end
 
   def lookup(short_code) do
-    Storage.get(short_code)
+    case Cache.lookup(short_code) do
+      {:ok, url} ->
+        {:ok, url}
+
+      {:error, :not_found} ->
+        case Storage.get(short_code) do
+          {:ok, url} ->
+            Cache.insert(short_code, url)
+            {:ok, url}
+
+          {:error, :not_found} ->
+            {:error, :not_found}
+        end
+    end
   end
 
   def remote_lookup(short_code) do
@@ -42,11 +56,11 @@ defmodule Shortener.LinkManager do
     |> Base.encode16(case: :lower)
     |> String.to_integer(16)
     |> pack_bitstring
-    |> Base.url_encode64
+    |> Base.url_encode64()
     |> String.replace(~r/==\n?/, "")
   end
 
   defp hash(str), do: :crypto.hash(:sha256, str)
 
-  defp pack_bitstring(int), do: << int :: big-unsigned-32 >>
+  defp pack_bitstring(int), do: <<int::big-unsigned-32>>
 end
