@@ -26,6 +26,9 @@ defmodule Shortener.LinkManager do
     short_code = generate_short_code(url)
     Storage.set(short_code, url)
 
+    Cluster.find_node(short_code)
+    |> :rpc.call(Cache, :insert, [short_code, url])
+
     {:ok, short_code}
   end
 
